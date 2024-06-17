@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 interface Book {
   title: string;
@@ -11,24 +11,38 @@ const SearchBar: React.FC = () => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
 
+  const debounce = (func: (...args: any[]) => void, delay: number) => {
+    let timer: NodeJS.Timeout;
+    return (...args: any[]) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        func(...args);
+      }, delay);
+    };
+  };
+
+  const fetchSuggestions = useCallback(
+    debounce(async (searchQuery: string) => {
+      if (searchQuery) {
+        const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${searchQuery}&startIndex=0&maxResults=20`);
+        const data = await response.json();
+        if (data.items) {
+          const bookTitles = data.items.map((item: any) => ({
+            title: item.volumeInfo.title,
+          }));
+          setSuggestions(bookTitles);
+        } else {
+          setSuggestions([]);
+        }
+      } else {
+        setSuggestions([]);
+      }
+    }, 300), []
+  );
+
   useEffect(() => {
-    if (query) {
-      fetch(`https://www.googleapis.com/books/v1/volumes?q=${query}&startIndex=0&maxResults=20`)
-        .then(response => response.json())
-        .then(data => {
-          if (data.items) {
-            const bookTitles = data.items.map((item: any) => ({
-              title: item.volumeInfo.title,
-            }));
-            setSuggestions(bookTitles);
-          } else {
-            setSuggestions([]);
-          }
-        });
-    } else {
-      setSuggestions([]);
-    }
-  }, [query]);
+    fetchSuggestions(query);
+  }, [query, fetchSuggestions]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setQuery(e.target.value);
